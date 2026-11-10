@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b1220">
+  <title>APEX SMC — Institutional Trading Lab</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div><div class="brand">APEX <span>SMC</span></div><small>INSTITUTIONAL TRADING LAB · v1.0</small></div>
+  <div class="status" id="dataStatus">DEMO DATA</div>
+</header>
+
+<main>
+  <section id="dashboard" class="screen active">
+    <div class="hero">
+      <p class="eyebrow">YOUR LEARNING JOURNEY</p>
+      <h1>शून्य से Advanced तक।</h1>
+      <p>सीखें · चार्ट पढ़ें · Replay करें · अपनी रणनीति जाँचें</p>
+      <button class="primary" data-go="learn">Learning शुरू करें</button>
+    </div>
+    <div class="stats">
+      <article><small>कुल अभ्यास</small><strong id="practiceCount">0</strong></article>
+      <article><small>सीखे गए लेसन</small><strong id="lessonCount">0 / 8</strong></article>
+      <article><small>Journal Entries</small><strong id="journalCount">0</strong></article>
+    </div>
+    <h2>आपका Learning Path</h2>
+    <div id="levelCards" class="level-grid"></div>
+    <div class="notice"><b>महत्वपूर्ण:</b> यह शैक्षिक और सिमुलेशन टूल है। कोई Profit Guarantee नहीं। Demo candles वास्तविक बाजार डेटा नहीं हैं।</div>
+  </section>
+
+  <section id="learn" class="screen">
+    <div class="section-head"><p class="eyebrow">LEARNING ACADEMY</p><h1>Beginner से Advanced</h1></div>
+    <div id="lessonList" class="lesson-list"></div>
+    <div id="lessonDetail" class="panel hidden"></div>
+  </section>
+
+  <section id="chart" class="screen">
+    <div class="section-head"><p class="eyebrow">CHART REPLAY LAB</p><h1>Historical Chart</h1></div>
+    <div class="toolbar">
+      <label>Market<select id="marketSelect"><option value="XAUUSD">XAUUSD · Gold</option><option value="BTCUSD">BTCUSD · Bitcoin</option><option value="EURUSD">EURUSD · Forex</option></select></label>
+      <label>Timeframe<select id="tfSelect"><option>15m</option><option>1h</option><option>4h</option><option>1d</option></select></label>
+      <label class="file-label">CSV Import<input id="csvFile" type="file" accept=".csv,text/csv"></label>
+    </div>
+    <div class="chart-wrap"><div id="chartContainer"></div></div>
+    <div class="chart-meta"><span id="chartLabel">Sample dataset · NOT LIVE</span><span id="candleCount">0 candles</span></div>
+    <div class="replay-controls">
+      <button id="resetBtn" class="secondary">Reset</button>
+      <button id="prevBtn" class="secondary">◀</button>
+      <button id="playBtn" class="primary">Play ▶</button>
+      <button id="nextBtn" class="secondary">▶</button>
+      <label>Speed<select id="speedSelect"><option value="1200">0.5×</option><option value="600" selected>1×</option><option value="250">2×</option></select></label>
+    </div>
+    <div class="panel">
+      <h3>Replay Decision</h3>
+      <p class="muted">अगली candle देखने से पहले अपना observation लिखें।</p>
+      <textarea id="observation" placeholder="उदाहरण: Price ने previous high के ऊपर trade किया, लेकिन अभी rejection/MSS की पुष्टि नहीं..."></textarea>
+      <button id="saveObservation" class="primary full">Journal में सेव करें</button>
+    </div>
+    <div class="notice">CSV format: <code>time,open,high,low,close</code>. Time ISO date (YYYY-MM-DD) या Unix seconds हो सकता है। डेटा का स्रोत और timeframe खुद सत्यापित करें।</div>
+  </section>
+
+  <section id="backtest" class="screen">
+    <div class="section-head"><p class="eyebrow">STRATEGY TESTING</p><h1>Backtest Workspace</h1></div>
+    <div class="panel">
+      <h3>Rule-based practice</h3>
+      <p class="muted">Version 1 में आप historical candles देखकर अपने नियम manually test करेंगे। Automatic strategy engine अगले चरण में बनेगा।</p>
+      <label>Setup<select id="setupSelect"><option>Liquidity Sweep → MSS → FVG</option><option>Break of Structure → Retest</option><option>Order Block Retest</option></select></label>
+      <label>Risk per trade (simulation)<select id="riskSelect"><option value="0.25">0.25%</option><option value="0.5" selected>0.50%</option><option value="1">1.00%</option></select></label>
+      <label>Observation / Result<textarea id="backtestNote" placeholder="क्या setup के सभी नियम पूरे हुए? क्या invalidation हुआ?"></textarea></label>
+      <button id="saveBacktest" class="primary full">Backtest Note सेव करें</button>
+    </div>
+    <div class="notice"><b>सावधानी:</b> यह अभी automated profitability test नहीं है। Fees, spread, slippage और out-of-sample testing जोड़े बिना परिणाम को भरोसेमंद न मानें।</div>
+  </section>
+
+  <section id="journal" class="screen">
+    <div class="section-head"><p class="eyebrow">YOUR RECORD</p><h1>Trading Journal</h1></div>
+    <div class="stats"><article><small>Saved Notes</small><strong id="journalTotal">0</strong></article><article><small>Storage</small><strong>Device</strong></article></div>
+    <div id="journalEntries" class="journal-list"></div>
+    <button id="exportBtn" class="secondary full">Journal Export करें (JSON)</button>
+    <button id="clearBtn" class="danger full">सारा Local Data मिटाएँ</button>
+  </section>
+</main>
+
+<nav class="bottom-nav">
+  <button class="nav-btn active" data-go="dashboard"><b>⌂</b><span>Home</span></button>
+  <button class="nav-btn" data-go="learn"><b>▤</b><span>Learn</span></button>
+  <button class="nav-btn" data-go="chart"><b>◫</b><span>Chart</span></button>
+  <button class="nav-btn" data-go="backtest"><b>◷</b><span>Test</span></button>
+  <button class="nav-btn" data-go="journal"><b>☷</b><span>Journal</span></button>
+</nav>
+<div id="toast" class="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

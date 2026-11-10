@@ -1,0 +1,10 @@
+{
+  "name": "APEX SMC Institutional Trading Lab",
+  "short_name": "APEX SMC",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "description": "Hindi ICT and SMC learning and historical chart replay lab",
+  "icons": []
+}
