@@ -49,3 +49,17 @@ $("#clearBtn").onclick=async()=>{if(!confirm("क्या आप सभी save
 $("#csvFile").onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let lines=(await f.text()).trim().split(/\r?\n/),head=lines.shift().toLowerCase().split(",").map(x=>x.trim()),idx=["time","open","high","low","close"].map(k=>head.indexOf(k));if(idx.some(i=>i<0))throw Error("Required headers: time,open,high,low,close");let rows=lines.map(line=>{let c=line.split(",");return [c[idx[0]],+c[idx[1]],+c[idx[2]],+c[idx[3]],+c[idx[4]]]});if(rows.some(r=>!r[0]||r.slice(1).some(n=>!Number.isFinite(n))||r[2]<r[3]))throw Error("CSV में invalid OHLC values हैं");allCandles=toChartData(rows);visibleCount=Math.min(8,allCandles.length);stopReplay();renderReplay();$("#chartLabel").textContent=`Imported: ${f.name} · source not verified`;$("#dataStatus").textContent="CSV IMPORT";toast(`${rows.length} candles loaded`)}catch(err){alert("CSV Error: "+err.message)}};
 async function boot(){notes=await getState("notes",[]);completed=new Set(await getState("completed",[]));renderLessons();updateStats();renderJournal();$("#levelCards").innerHTML=lessons.map((l,i)=>`<div class="level-card" data-level="${i}"><b>LEVEL ${l[0]}</b>${l[1]}<br><span>${l[2]}</span></div>`).join("");$$("[data-level]").forEach(x=>x.onclick=()=>{navigate("learn");openLesson(+x.dataset.level)});if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});}
 boot();
+// Phase 2 bridge for importing validated historical candles into the existing replay chart.
+window.ApexSMCBridge = {
+  setCandles(rows, meta = {}) {
+    allCandles = rows;
+    visibleCount = Math.min(8, allCandles.length);
+    stopReplay();
+    const market = meta.market || $("#marketSelect").value;
+    if ([...$("#marketSelect").options].some(o => o.value === market)) $("#marketSelect").value = market;
+    $("#chartLabel").textContent = meta.label || "Imported historical dataset";
+    $("#dataStatus").textContent = "HISTORICAL DATA";
+    if (series) renderReplay();
+  },
+  resetToSample() { loadMarket(); }
+};

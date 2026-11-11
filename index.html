@@ -46,7 +46,16 @@
       <label>Timeframe<select id="tfSelect"><option>15m</option><option>1h</option><option>4h</option><option>1d</option></select></label>
       <label class="file-label">CSV Import<input id="csvFile" type="file" accept=".csv,text/csv"></label>
     </div>
-    <div class="chart-wrap"><div id="chartContainer"></div></div>
+    <section class="panel data-manager" id="dataManager">
+<h3>Historical Data Manager · Phase 2</h3>
+<p class="muted">अपनी CSV import करें। पहले source timeframe चुनें।</p>
+<label>CSV Source Timeframe<select id="csvSourceTf">
+<option value="1m">1 Minute</option><option value="5m">5 Minutes</option><option value="15m" selected>15 Minutes</option><option value="1h">1 Hour</option><option value="4h">4 Hours</option><option value="1d">1 Day</option>
+</select></label>
+<div class="dataset-row"><label>Saved Dataset<select id="datasetSelect"><option value="">कोई saved dataset नहीं</option></select></label><button id="loadDatasetBtn" class="secondary">Load</button><button id="deleteDatasetBtn" class="danger">Delete</button></div>
+<div id="dataReport" class="data-report">अभी कोई Historical CSV import नहीं हुई है।</div>
+</section>
+<div class="chart-wrap"><div id="chartContainer"></div></div>
     <div class="chart-meta"><span id="chartLabel">Sample dataset · NOT LIVE</span><span id="candleCount">0 candles</span></div>
     <div class="replay-controls">
       <button id="resetBtn" class="secondary">Reset</button>
@@ -95,5 +104,6 @@
 </nav>
 <div id="toast" class="toast"></div>
 <script src="app.js"></script>
+<script src="phase2.js"></script>
 </body>
 </html>

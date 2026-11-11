@@ -43,3 +43,13 @@ Date-only values को daily candles की तरह समझें। Intrad
 
 ## Risk note
 यह शिक्षा और simulation के लिए है, निवेश सलाह नहीं। कोई setup, win rate या backtest भविष्य के profit की गारंटी नहीं देता।
+
+
+## Phase 2 — Historical Data Engine
+- User-supplied CSV import for Gold, Crypto and Forex symbols.
+- OHLC validation: positive numeric prices, high/low consistency, duplicate timestamps and chronological ordering.
+- Source timeframe selector (1m, 5m, 15m, 1h, 4h, 1d).
+- Aggregation from smaller source timeframe to selected 15m/1h/4h/1d chart timeframe. The app refuses to invent lower-timeframe candles from higher-timeframe data.
+- On-device saved dataset library using IndexedDB; load/delete saved datasets.
+- Timestamp gap warnings. Session closures/weekends may also cause gaps and must be checked against the data source.
+- User-supplied data only; the app does not verify the vendor/source or fetch live market prices.

@@ -24,3 +24,11 @@ textarea{min-height:90px;resize:vertical}.lesson-detail h3{color:var(--gold)}.le
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#e9b84e;color:#17130a;padding:10px 15px;border-radius:20px;font-size:12px;opacity:0;pointer-events:none;transition:.2s}.toast.show{opacity:1}
 code{color:#f6ca72;overflow-wrap:anywhere}
 @media(min-width:650px){main{padding:24px}.toolbar{grid-template-columns:1fr 1fr 1fr}.replay-controls{grid-template-columns:repeat(4,1fr) 1.4fr}.replay-controls label{grid-column:auto}.chart-wrap{height:440px}}
+
+/* Phase 2 data manager */
+.data-manager{margin:12px 0;background:#101c2c}
+.dataset-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:7px;align-items:end}
+.dataset-row button{padding:9px 10px;margin-bottom:8px}
+.data-report{margin-top:10px;padding:11px;border:1px solid #34445b;border-radius:9px;background:#0b1625;color:#c4d0df;font-size:12px;line-height:1.55;overflow-wrap:anywhere}
+.data-report b{color:#f5c15c}.data-report .error{color:#ff9aa8}
+@media(max-width:390px){.dataset-row{grid-template-columns:1fr 1fr}.dataset-row label{grid-column:1/-1}}
