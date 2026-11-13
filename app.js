@@ -1,7 +1,6 @@
-
 /* =====================================================
    APEX SMC INSTITUTIONAL TRADING LAB
-   APP.JS — PHASE 1 + PHASE 2 BRIDGE + PHASE 3.1
+   APP.JS — RESTORED PHASE 1 + PHASE 2 + PHASE 3.1
    Educational / Historical Simulation Only
 ===================================================== */
 
@@ -27,7 +26,6 @@ let timer = null;
 let notes = [];
 let completed = new Set();
 
-/* PHASE 3.1 STATE */
 let p31Markers = [];
 let p31Levels = [];
 let p31TrendLines = [];
@@ -91,189 +89,249 @@ EURUSD: [
 ]
 };
 
-function toast(t) {
-  const e = $("#toast");
-  e.textContent = t;
-  e.classList.add("show");
-  setTimeout(() => e.classList.remove("show"), 2100);
+/* BASIC HELPERS */
+function toast(message) {
+  const el = $("#toast");
+  if (!el) return;
+  el.textContent = message;
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), 2100);
 }
 
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+
+/* LOCAL DATABASE */
 function db() {
   return new Promise((resolve, reject) => {
-    let r = indexedDB.open("ApexSMC", 1);
-    r.onupgradeneeded = () => {
-      if (!r.result.objectStoreNames.contains("state")) {
-        r.result.createObjectStore("state");
+    const request = indexedDB.open("ApexSMC", 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains("state")) {
+        request.result.createObjectStore("state");
       }
     };
-    r.onsuccess = () => resolve(r.result);
-    r.onerror = () => reject(r.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
   });
 }
 
-async function getState(k, d) {
+async function getState(key, fallback) {
   try {
-    let dbase = await db();
-    return await new Promise(res => {
-      let r = dbase.transaction("state").objectStore("state").get(k);
-      r.onsuccess = () => res(r.result ?? d);
-      r.onerror = () => res(d);
+    const database = await db();
+    return await new Promise(resolve => {
+      const request = database.transaction("state").objectStore("state").get(key);
+      request.onsuccess = () => resolve(request.result ?? fallback);
+      request.onerror = () => resolve(fallback);
     });
   } catch {
-    return d;
+    try {
+      const saved = localStorage.getItem(key);
+      return saved === null ? fallback : JSON.parse(saved);
+    } catch {
+      return fallback;
+    }
   }
 }
 
-async function setState(k, v) {
+async function setState(key, value) {
   try {
-    let dbase = await db();
-    dbase.transaction("state", "readwrite").objectStore("state").put(v, k);
+    const database = await db();
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction("state", "readwrite");
+      transaction.objectStore("state").put(value, key);
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+    });
   } catch {
-    localStorage.setItem(k, JSON.stringify(v));
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {}
   }
 }
 
+/* NAVIGATION */
 function navigate(id) {
-  $$(".screen").forEach(s => s.classList.toggle("active", s.id === id));
-  $$(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.go === id));
-  if (id === "chart") setTimeout(initChart, 80);
+  $$(".screen").forEach(screen => {
+    screen.classList.toggle("active", screen.id === id);
+  });
+  $$(".nav-btn").forEach(button => {
+    button.classList.toggle("active", button.dataset.go === id);
+  });
+
+  if (id === "chart") setTimeout(initChart, 100);
   if (id === "journal") renderJournal();
   window.scrollTo(0, 0);
 }
 
-$$("[data-go]").forEach(b =>
-  b.addEventListener("click", () => navigate(b.dataset.go))
-);
+$$("[data-go]").forEach(button => {
+  button.addEventListener("click", () => navigate(button.dataset.go));
+});
 
+/* LESSONS */
 function renderLessons() {
-  $("#lessonList").innerHTML = lessons.map((l, i) =>
-    `<div class="lesson-item">
-      <div><b>LEVEL ${l[0]} · ${l[1]}</b><small>${l[2]}</small></div>
-      <button class="secondary" data-lesson="${i}">${completed.has(i) ? "Review" : "Open"}</button>
-    </div>`
-  ).join("");
+  const list = $("#lessonList");
+  if (!list) return;
 
-  $$("[data-lesson]").forEach(b =>
-    b.onclick = () => openLesson(+b.dataset.lesson)
-  );
+  list.innerHTML = lessons.map((lesson, index) => `
+    <div class="lesson-item">
+      <div>
+        <b>LEVEL ${lesson[0]} · ${lesson[1]}</b>
+        <small>${lesson[2]}</small>
+      </div>
+      <button class="secondary" data-lesson="${index}">
+        ${completed.has(index) ? "Review" : "Open"}
+      </button>
+    </div>
+  `).join("");
+
+  $$("[data-lesson]").forEach(button => {
+    button.onclick = () => openLesson(Number(button.dataset.lesson));
+  });
 }
 
-function openLesson(i) {
-  let l = lessons[i], d = $("#lessonDetail");
-  d.classList.remove("hidden");
-  d.innerHTML = `
-    <p class="eyebrow">LEVEL ${l[0]}</p>
-    <h3>${l[1]}</h3>
-    <p><b>Theory:</b> ${l[3]}</p>
-    <p><b>Practice:</b> ${l[4]}</p>
-    <p><b>Invalidation / सावधानी:</b> ${l[5]}</p>
-    <button class="primary full" id="completeLesson">इस लेसन को पूरा किया</button>
+function openLesson(index) {
+  const lesson = lessons[index];
+  const detail = $("#lessonDetail");
+  if (!lesson || !detail) return;
+
+  detail.classList.remove("hidden");
+  detail.innerHTML = `
+    <p class="eyebrow">LEVEL ${lesson[0]}</p>
+    <h3>${lesson[1]}</h3>
+    <p><b>Theory:</b> ${lesson[3]}</p>
+    <p><b>Practice:</b> ${lesson[4]}</p>
+    <p><b>Invalidation / सावधानी:</b> ${lesson[5]}</p>
+    <button class="primary full" id="completeLesson">
+      इस लेसन को पूरा किया
+    </button>
   `;
 
   $("#completeLesson").onclick = async () => {
-    completed.add(i);
+    completed.add(index);
     await setState("completed", [...completed]);
     renderLessons();
     updateStats();
     toast("Lesson progress saved");
   };
 
-  d.scrollIntoView({ behavior: "smooth", block: "start" });
+  detail.scrollIntoView({ behavior:"smooth", block:"start" });
 }
 
 function updateStats() {
-  $("#lessonCount").textContent = `${completed.size} / 8`;
-  $("#practiceCount").textContent = notes.length;
-  $("#journalCount").textContent = notes.length;
-  $("#journalTotal").textContent = notes.length;
+  if ($("#lessonCount")) $("#lessonCount").textContent = `${completed.size} / 8`;
+  if ($("#practiceCount")) $("#practiceCount").textContent = notes.length;
+  if ($("#journalCount")) $("#journalCount").textContent = notes.length;
+  if ($("#journalTotal")) $("#journalTotal").textContent = notes.length;
 }
 
+/* CHART DATA */
 function toChartData(rows) {
-  return rows.map(r => ({
-    time: r[0],
-    open: +r[1],
-    high: +r[2],
-    low: +r[3],
-    close: +r[4]
+  return rows.map(row => ({
+    time: row[0],
+    open: Number(row[1]),
+    high: Number(row[2]),
+    low: Number(row[3]),
+    close: Number(row[4])
   }));
 }
 
-/* CHART INITIALIZATION */
 function initChart() {
+  const container = $("#chartContainer");
+  if (!container) return;
+
   if (!window.LightweightCharts) {
-    $("#chartContainer").innerHTML =
+    container.innerHTML =
       "<p style='padding:15px'>Chart library load नहीं हुई। इंटरनेट कनेक्शन जाँचें।</p>";
     return;
   }
 
   if (!chart) {
-    chart = LightweightCharts.createChart($("#chartContainer"), {
-      width: $("#chartContainer").clientWidth,
-      height: $("#chartContainer").clientHeight,
+    chart = LightweightCharts.createChart(container, {
+      width: container.clientWidth || 600,
+      height: container.clientHeight || 360,
       layout: {
-        background: { color: "#080f1a" },
-        textColor: "#a9b8ca"
+        background: { color:"#080f1a" },
+        textColor:"#a9b8ca"
       },
       grid: {
-        vertLines: { color: "#1b2a3d" },
-        horzLines: { color: "#1b2a3d" }
+        vertLines:{ color:"#1b2a3d" },
+        horzLines:{ color:"#1b2a3d" }
       },
-      rightPriceScale: { borderColor: "#34445b" },
-      timeScale: {
-        borderColor: "#34445b",
-        timeVisible: true
+      rightPriceScale:{ borderColor:"#34445b" },
+      timeScale:{
+        borderColor:"#34445b",
+        timeVisible:true
       }
     });
 
     series = chart.addCandlestickSeries({
-      upColor: "#22c55e",
-      downColor: "#ef4444",
-      borderVisible: false,
-      wickUpColor: "#22c55e",
-      wickDownColor: "#ef4444"
+      upColor:"#22c55e",
+      downColor:"#ef4444",
+      borderVisible:false,
+      wickUpColor:"#22c55e",
+      wickDownColor:"#ef4444"
     });
 
-    new ResizeObserver(() => {
-      chart.applyOptions({
-        width: $("#chartContainer").clientWidth,
-        height: $("#chartContainer").clientHeight
-      });
-    }).observe($("#chartContainer"));
+    if (window.ResizeObserver) {
+      new ResizeObserver(() => {
+        if (!chart || !container) return;
+        chart.applyOptions({
+          width:container.clientWidth,
+          height:container.clientHeight || 360
+        });
+      }).observe(container);
+    }
   }
 
-  loadMarket();
+  if (!allCandles.length) loadMarket();
+  else renderReplay();
+
   addPhase31Tools();
 }
 
 function loadMarket() {
-  let m = $("#marketSelect").value;
-  allCandles = toChartData(sample[m]);
+  const marketSelect = $("#marketSelect");
+  const market = marketSelect ? marketSelect.value : "XAUUSD";
+  const rows = sample[market] || sample.XAUUSD;
+
+  allCandles = toChartData(rows);
   visibleCount = Math.min(8, allCandles.length);
+
   stopReplay();
   clearPhase31Drawings();
   renderReplay();
-  $("#chartLabel").textContent =
-    "Illustrative sample · NOT real historical market data";
-  $("#dataStatus").textContent = "SAMPLE DATA";
+
+  if ($("#chartLabel")) {
+    $("#chartLabel").textContent =
+      "Illustrative sample · NOT real historical market data";
+  }
+  if ($("#dataStatus")) $("#dataStatus").textContent = "SAMPLE DATA";
 }
 
 function renderReplay() {
   if (!series) return;
+
   series.setData(allCandles.slice(0, visibleCount));
-  $("#candleCount").textContent =
-    `${visibleCount} / ${allCandles.length} candles`;
+
+  if ($("#candleCount")) {
+    $("#candleCount").textContent =
+      `${visibleCount} / ${allCandles.length} candles`;
+  }
 
   if (chart) chart.timeScale().fitContent();
 
   if (p31Markers.length) {
+    const visibleTimes = new Set(
+      allCandles.slice(0, visibleCount).map(candle => timeValue(candle.time))
+    );
     try {
-      const visibleTimes = new Set(
-        allCandles.slice(0, visibleCount).map(c => c.time)
-      );
       series.setMarkers(
-        p31Markers.filter(m => visibleTimes.has(m.time))
+        p31Markers.filter(marker => visibleTimes.has(timeValue(marker.time)))
       );
-    } catch (e) {}
+    } catch {}
   }
 }
 
@@ -286,195 +344,249 @@ function stopReplay() {
 }
 
 function advance() {
+  if (!series) return;
+
   if (visibleCount < allCandles.length) {
     visibleCount++;
     series.update(allCandles[visibleCount - 1]);
-    $("#candleCount").textContent =
-      `${visibleCount} / ${allCandles.length} candles`;
+
+    if ($("#candleCount")) {
+      $("#candleCount").textContent =
+        `${visibleCount} / ${allCandles.length} candles`;
+    }
   } else {
     stopReplay();
     toast("Replay पूरा हुआ");
   }
 }
 
-$("#marketSelect").onchange = loadMarket;
+/* REPLAY CONTROLS */
+if ($("#marketSelect")) $("#marketSelect").onchange = loadMarket;
 
-$("#resetBtn").onclick = () => {
-  stopReplay();
-  visibleCount = Math.min(8, allCandles.length);
-  renderReplay();
-};
-
-$("#nextBtn").onclick = () => {
-  stopReplay();
-  advance();
-};
-
-$("#prevBtn").onclick = () => {
-  stopReplay();
-  visibleCount = Math.max(1, visibleCount - 1);
-  renderReplay();
-};
-
-$("#playBtn").onclick = () => {
-  if (timer) {
+if ($("#resetBtn")) {
+  $("#resetBtn").onclick = () => {
     stopReplay();
-    return;
-  }
-  if (visibleCount >= allCandles.length) visibleCount = 1;
-  $("#playBtn").textContent = "Pause Ⅱ";
-  timer = setInterval(advance, +$("#speedSelect").value);
-};
+    visibleCount = Math.min(8, allCandles.length);
+    renderReplay();
+  };
+}
 
-$("#speedSelect").onchange = () => {
-  if (timer) {
+if ($("#nextBtn")) {
+  $("#nextBtn").onclick = () => {
     stopReplay();
-    $("#playBtn").click();
-  }
-};
+    advance();
+  };
+}
+
+if ($("#prevBtn")) {
+  $("#prevBtn").onclick = () => {
+    stopReplay();
+    visibleCount = Math.max(1, visibleCount - 1);
+    renderReplay();
+  };
+}
+
+if ($("#playBtn")) {
+  $("#playBtn").onclick = () => {
+    if (timer) {
+      stopReplay();
+      return;
+    }
+    if (visibleCount >= allCandles.length) {
+      visibleCount = 1;
+      renderReplay();
+    }
+    $("#playBtn").textContent = "Pause Ⅱ";
+    timer = setInterval(advance, Number($("#speedSelect")?.value || 800));
+  };
+}
+
+if ($("#speedSelect")) {
+  $("#speedSelect").onchange = () => {
+    if (timer) {
+      stopReplay();
+      $("#playBtn")?.click();
+    }
+  };
+}
 
 /* JOURNAL */
 function saveNote(type, content) {
   notes.unshift({
     type,
     content,
-    market: $("#marketSelect").value,
+    market: $("#marketSelect")?.value || "Unknown",
     date: new Date().toLocaleString(),
     setup: $("#setupSelect")?.value || "Replay"
   });
+
   setState("notes", notes);
   updateStats();
   renderJournal();
   toast("आपकी entry सेव हो गई");
 }
 
-$("#saveObservation").onclick = () => {
-  let v = $("#observation").value.trim();
-  if (!v) return toast("पहले observation लिखें");
-  saveNote("Replay", v);
-  $("#observation").value = "";
-};
+if ($("#saveObservation")) {
+  $("#saveObservation").onclick = () => {
+    const value = $("#observation").value.trim();
+    if (!value) return toast("पहले observation लिखें");
+    saveNote("Replay", value);
+    $("#observation").value = "";
+  };
+}
 
-$("#saveBacktest").onclick = () => {
-  let v = $("#backtestNote").value.trim();
-  if (!v) return toast("पहले note लिखें");
-  saveNote(
-    "Backtest",
-    `Setup: ${$("#setupSelect").value}; Risk simulation: ${$("#riskSelect").value}%; ${v}`
-  );
-  $("#backtestNote").value = "";
-};
+if ($("#saveBacktest")) {
+  $("#saveBacktest").onclick = () => {
+    const value = $("#backtestNote").value.trim();
+    if (!value) return toast("पहले note लिखें");
+
+    saveNote(
+      "Backtest",
+      `Setup: ${$("#setupSelect")?.value || "Practice"}; Risk simulation: ${$("#riskSelect")?.value || "—"}%; ${value}`
+    );
+    $("#backtestNote").value = "";
+  };
+}
 
 function renderJournal() {
-  $("#journalEntries").innerHTML = notes.length
-    ? notes.map(n =>
-        `<article class="journal-entry">
-          <b>${n.type} · ${n.market}</b>
-          <small>${n.date}</small>
-          <p>${escapeHTML(n.content)}</p>
-        </article>`
-      ).join("")
+  const entries = $("#journalEntries");
+  if (!entries) return;
+
+  entries.innerHTML = notes.length
+    ? notes.map(note => `
+      <article class="journal-entry">
+        <b>${escapeHTML(note.type)} · ${escapeHTML(note.market)}</b>
+        <small>${escapeHTML(note.date)}</small>
+        <p>${escapeHTML(note.content)}</p>
+      </article>
+    `).join("")
     : "<p class='muted'>अभी कोई Journal Entry नहीं है। Chart Replay या Backtest से शुरुआत करें।</p>";
+
+  if ($("#journalTotal")) $("#journalTotal").textContent = notes.length;
 }
 
-function escapeHTML(s) {
-  return s.replace(/[&<>"']/g, c => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  }[c]));
+if ($("#exportBtn")) {
+  $("#exportBtn").onclick = () => {
+    const blob = new Blob(
+      [JSON.stringify({ notes, completed:[...completed] }, null, 2)],
+      { type:"application/json" }
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "apex-smc-journal.json";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 }
 
-$("#exportBtn").onclick = () => {
-  let blob = new Blob(
-    [JSON.stringify({ notes, completed: [...completed] }, null, 2)],
-    { type: "application/json" }
-  );
-  let a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "apex-smc-journal.json";
-  a.click();
-  URL.revokeObjectURL(a.href);
-};
+if ($("#clearBtn")) {
+  $("#clearBtn").onclick = async () => {
+    if (!confirm("क्या आप सभी saved lessons और journal entries मिटाना चाहते हैं?")) return;
 
-$("#clearBtn").onclick = async () => {
-  if (!confirm("क्या आप सभी saved lessons और journal entries मिटाना चाहते हैं?")) return;
-  notes = [];
-  completed.clear();
-  await setState("notes", notes);
-  await setState("completed", []);
-  updateStats();
-  renderJournal();
-  renderLessons();
-  toast("Local data cleared");
-};
+    notes = [];
+    completed.clear();
 
-/* BASIC CSV IMPORT */
-$("#csvFile").onchange = async e => {
-  let f = e.target.files[0];
-  if (!f) return;
+    await setState("notes", []);
+    await setState("completed", []);
 
-  try {
-    let lines = (await f.text()).trim().split(/\r?\n/);
-    let head = lines.shift().toLowerCase().split(",").map(x => x.trim());
-    let idx = ["time", "open", "high", "low", "close"].map(k => head.indexOf(k));
+    updateStats();
+    renderJournal();
+    renderLessons();
+    toast("Local data cleared");
+  };
+}
 
-    if (idx.some(i => i < 0)) {
-      throw Error("Required headers: time,open,high,low,close");
+/* CSV IMPORT */
+if ($("#csvFile")) {
+  $("#csvFile").onchange = async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const lines = (await file.text()).trim().split(/\r?\n/);
+      if (lines.length < 2) throw Error("CSV में data rows नहीं हैं।");
+
+      const header = lines.shift().toLowerCase().split(",").map(x => x.trim());
+      const indexes = ["time","open","high","low","close"].map(key => header.indexOf(key));
+
+      if (indexes.some(index => index < 0)) {
+        throw Error("Required headers: time,open,high,low,close");
+      }
+
+      const rows = lines.filter(line => line.trim()).map(line => {
+        const cells = line.split(",");
+        return [
+          cells[indexes[0]]?.trim(),
+          Number(cells[indexes[1]]),
+          Number(cells[indexes[2]]),
+          Number(cells[indexes[3]]),
+          Number(cells[indexes[4]])
+        ];
+      });
+
+      if (!rows.length) throw Error("CSV में कोई candle नहीं मिली।");
+
+      if (rows.some(row =>
+        !row[0] ||
+        row.slice(1).some(number => !Number.isFinite(number)) ||
+        row[2] < row[3] ||
+        row[2] < Math.max(row[1], row[4]) ||
+        row[3] > Math.min(row[1], row[4])
+      )) {
+        throw Error("CSV में invalid OHLC values हैं।");
+      }
+
+      allCandles = toChartData(rows);
+      visibleCount = Math.min(8, allCandles.length);
+
+      stopReplay();
+      clearPhase31Drawings();
+      renderReplay();
+
+      if ($("#chartLabel")) {
+        $("#chartLabel").textContent = `Imported: ${file.name} · source not verified`;
+      }
+      if ($("#dataStatus")) $("#dataStatus").textContent = "CSV IMPORT";
+
+      toast(`${rows.length} candles loaded`);
+    } catch (error) {
+      alert("CSV Error: " + error.message);
     }
-
-    let rows = lines.map(line => {
-      let c = line.split(",");
-      return [
-        c[idx[0]],
-        +c[idx[1]],
-        +c[idx[2]],
-        +c[idx[3]],
-        +c[idx[4]]
-      ];
-    });
-
-    if (rows.some(r =>
-      !r[0] ||
-      r.slice(1).some(n => !Number.isFinite(n)) ||
-      r[2] < r[3]
-    )) {
-      throw Error("CSV में invalid OHLC values हैं");
-    }
-
-    allCandles = toChartData(rows);
-    visibleCount = Math.min(8, allCandles.length);
-    stopReplay();
-    clearPhase31Drawings();
-    renderReplay();
-    $("#chartLabel").textContent =
-      `Imported: ${f.name} · source not verified`;
-    $("#dataStatus").textContent = "CSV IMPORT";
-    toast(`${rows.length} candles loaded`);
-  } catch (err) {
-    alert("CSV Error: " + err.message);
-  }
-};
+  };
+}
 
 /* PHASE 2 BRIDGE */
 window.ApexSMCBridge = {
   setCandles(rows, meta = {}) {
-    clearPhase31Drawings();
-    allCandles = rows;
-    visibleCount = Math.min(8, allCandles.length);
+    if (!Array.isArray(rows) || !rows.length) {
+      toast("Dataset में candles नहीं मिलीं");
+      return;
+    }
+
     stopReplay();
+    clearPhase31Drawings();
 
-    const market = meta.market || $("#marketSelect").value;
+    allCandles = rows.map(row => ({
+      time:row.time,
+      open:Number(row.open),
+      high:Number(row.high),
+      low:Number(row.low),
+      close:Number(row.close)
+    }));
 
-    if ([...$("#marketSelect").options].some(o => o.value === market)) {
+    visibleCount = Math.min(8, allCandles.length);
+
+    const market = meta.market || $("#marketSelect")?.value || "XAUUSD";
+    if ($("#marketSelect") &&
+        [...$("#marketSelect").options].some(option => option.value === market)) {
       $("#marketSelect").value = market;
     }
 
-    $("#chartLabel").textContent =
-      meta.label || "Imported historical dataset";
-    $("#dataStatus").textContent = "HISTORICAL DATA";
+    if ($("#chartLabel")) {
+      $("#chartLabel").textContent = meta.label || "Imported historical dataset";
+    }
+    if ($("#dataStatus")) $("#dataStatus").textContent = "HISTORICAL DATA";
 
     if (series) renderReplay();
   },
@@ -503,18 +615,15 @@ function addPhase31Tools() {
     <p class="muted">
       Visible historical candles पर structure पहचानने और drawing का अभ्यास करें।
     </p>
-
     <div class="p31-grid">
       <button class="primary" id="p31Detect">Swing पहचानें</button>
       <button class="secondary" id="p31Level">Horizontal Level</button>
       <button class="secondary" id="p31Trend">Trendline</button>
       <button class="danger" id="p31Clear">Drawings हटाएँ</button>
     </div>
-
     <div id="p31Report" class="data-report">
       पहले Swing पहचानें दबाएँ।
     </div>
-
     <p class="muted" style="font-size:11px;line-height:1.5">
       Swing नियम: 2 पिछली और 2 अगली candles से तुलना।
       अंतिम दो अधूरी candles को swing confirmation में शामिल नहीं किया जाता।
@@ -524,170 +633,28 @@ function addPhase31Tools() {
 
   chartWrap.insertAdjacentElement("afterend", panel);
 
-  document.getElementById("p31Detect").onclick = detectSwings;
-  document.getElementById("p31Level").onclick = drawHorizontalLevel;
-  document.getElementById("p31Trend").onclick = drawPracticeTrendline;
-  document.getElementById("p31Clear").onclick = clearPhase31Drawings;
+  $("#p31Detect").onclick = detectSwings;
+  $("#p31Level").onclick = drawHorizontalLevel;
+  $("#p31Trend").onclick = drawPracticeTrendline;
+  $("#p31Clear").onclick = clearPhase31Drawings;
 }
 
 function phase31Report(message) {
-  const el = $("#p31Report");
-  if (el) el.innerHTML = message;
+  const element = $("#p31Report");
+  if (element) element.innerHTML = message;
 }
 
 function getVisibleData() {
   return allCandles.slice(0, visibleCount);
 }
 
-function findSwings(data) {
-  const highs = [];
-  const lows = [];
+/* Convert chart time values into sortable numbers */
+function timeValue(time) {
+  if (typeof time === "number") return time;
 
-  for (let i = 2; i < data.length - 2; i++) {
-    const c = data[i];
-    const left = data.slice(i - 2, i);
-    const right = data.slice(i + 1, i + 3);
-
-    const high = left.every(x => c.high > x.high) &&
-                 right.every(x => c.high > x.high);
-
-    const low = left.every(x => c.low < x.low) &&
-                right.every(x => c.low < x.low);
-
-    if (high) {
-      const previous = highs[highs.length - 1];
-      let label = "SH";
-
-      if (previous) {
-        label = c.high > previous.price ? "HH" : "LH";
-      }
-
-      highs.push({ time: c.time, price: c.high, label });
-    }
-
-    if (low) {
-      const previous = lows[lows.length - 1];
-      let label = "SL";
-
-      if (previous) {
-        label = c.low > previous.price ? "HL" : "LL";
-      }
-
-      lows.push({ time: c.time, price: c.low, label });
-    }
+  if (typeof time === "string") {
+    const parsed = Date.parse(time);
+    return Number.isFinite(parsed) ? parsed : 0;
   }
 
-  return { highs, lows };
-}
-
-function detectSwings() {
-  if (!series || !chart) {
-    phase31Report("पहले Chart खोलें और candles लोड करें।");
-    return;
-  }
-
-  const data = getVisibleData();
-
-  if (data.length < 5) {
-    phase31Report("कम-से-कम 5 visible candles चाहिए।");
-    return;
-  }
-
-  const result = findSwings(data);
-  const markers = [];
-
-  result.highs.forEach(p => {
-    markers.push({
-      time: p.time,
-      position: "aboveBar",
-      color: "#f5b942",
-      shape: "arrowDown",
-      text: p.label
-    });
-  });
-
-  result.lows.forEach(p => {
-    markers.push({
-      time: p.time,
-      position: "belowBar",
-      color: "#38bdf8",
-      shape: "arrowUp",
-      text: p.label
-    });
-  });
-
-  p31Markers = markers.sort((a, b) => {
-    const ta = typeof a.time === "number" ? a.time : 0;
-    const tb = typeof b.time === "number" ? b.time : 0;
-    return ta - tb;
-  });
-
-  series.setMarkers(p31Markers);
-
-  const highLabels = result.highs.map(x => x.label);
-  const lowLabels = result.lows.map(x => x.label);
-
-  phase31Report(`
-    <b>Swing Analysis Complete</b><br>
-    Swing High: <b>${result.highs.length}</b><br>
-    Swing Low: <b>${result.lows.length}</b><br>
-    <br>
-    High Structure: ${highLabels.join(" → ") || "अभी नहीं मिला"}<br>
-    Low Structure: ${lowLabels.join(" → ") || "अभी नहीं मिला"}<br>
-    <br>
-    <small>HH/HL/LH/LL पिछले confirmed swing से तुलना करके बनाए गए हैं।</small>
-  `);
-
-  if (!markers.length) {
-    phase31Report(
-      "इस visible हिस्से में 2-left / 2-right नियम से कोई confirmed swing नहीं मिला।"
-    );
-  }
-}
-
-function drawHorizontalLevel() {
-  if (!series || !chart) {
-    phase31Report("पहले Chart खोलें।");
-    return;
-  }
-
-  const data = getVisibleData();
-
-  if (!data.length) {
-    phase31Report("पहले candles लोड करें।");
-    return;
-  }
-
-  const price = data[data.length - 1].close;
-
-  const line = series.createPriceLine({
-    price,
-    color: "#f5b942",
-    lineWidth: 2,
-    lineStyle: LightweightCharts.LineStyle.Dashed,
-    axisLabelVisible: true,
-    title: "Practice Level"
-  });
-
-  p31Levels.push(line);
-
-  phase31Report(
-    `Horizontal Practice Level बनाया गया: <b>${price}</b>`
-  );
-}
-
-function drawPracticeTrendline() {
-  if (!series || !chart) {
-    phase31Report("पहले Chart खोलें।");
-    return;
-  }
-
-  const data = getVisibleData();
-
-  if (data.length < 5) {
-    phase31Report("Trendline के लिए पर्याप्त candles नहीं हैं।");
-    return;
-  }
-
-  const result = findSwings(data);
-  const points = 
+   
