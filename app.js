@@ -405,4 +405,9 @@ async function boot() {
   renderLessons(); updateStats(); renderJournal();
   const cards=$("#levelCards");
   if (cards) {
-    cards.innerHTML=lessons.map((lesson,index)=>`<div class="level-card" 
+    cards.innerHTML=lessons.map((lesson,index)=>`<div class="level-card" data-level="${index}"><b>LEVEL ${lesson[0]}</b>${lesson[1]}<br><span>${lesson[2]}</span></div>`).join("");
+    $$("[data-level]").forEach(card=>card.onclick=()=>{navigate("learn");openLesson(Number(card.dataset.level));});
+  }
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
+boot();
